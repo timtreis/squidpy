@@ -19,6 +19,8 @@ from ._stain import (
     estimate_background_intensity,
     fit_cohort_reference,
     fit_stain_reference,
+    normalization_consistency,
+    stain_separation_quality,
 )
 
 __all__ = [
@@ -36,6 +38,8 @@ __all__ = [
     "estimate_background_intensity",
     "fit_cohort_reference",
     "fit_stain_reference",
+    "normalization_consistency",
+    "stain_separation_quality",
     "make_tiles",
     "make_tiles_from_spots",
     "qc_image",

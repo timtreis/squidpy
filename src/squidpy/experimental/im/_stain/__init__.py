@@ -32,6 +32,10 @@ from squidpy.experimental.im._stain._normalize import (
     decompose_stains,
     fit_stain_reference,
 )
+from squidpy.experimental.im._stain._qc import (
+    normalization_consistency,
+    stain_separation_quality,
+)
 from squidpy.experimental.im._stain._reference import StainMethod, StainReference
 from squidpy.experimental.im._stain._reinhard import (
     ReinhardParams,
@@ -72,7 +76,9 @@ __all__ = [
     "fit_stain_reference",
     "lab_ruderman_to_rgb",
     "luminosity_foreground_mask",
+    "normalization_consistency",
     "reorder_to_canonical",
+    "stain_separation_quality",
     "rgb_to_lab_ruderman",
     "rgb_to_sda",
     "sda_to_rgb",

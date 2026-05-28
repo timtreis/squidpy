@@ -155,6 +155,10 @@ See the {doc}`extensibility guide </extensibility>` for how to implement a custo
     experimental.im.apply_stain_normalization
     experimental.im.decompose_stains
     experimental.im.estimate_background_intensity
+    experimental.im.normalization_consistency
+    experimental.im.stain_separation_quality
+    experimental.pl.stain_separation
+    experimental.pl.stain_comparison
     experimental.im.StainReference
     experimental.im.ReinhardParams
     experimental.im.MacenkoParams
