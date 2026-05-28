@@ -1,17 +1,19 @@
-"""Slim container for a fitted stain reference.
+"""Container for a fitted stain reference.
 
-Holds either a 3x3 stain matrix (Macenko/Vahadane, ships in PR 3) or a
-pair of Ruderman Lab channel statistics (Reinhard, ships in PR 2). The
-dataclass is intentionally minimal in this PR; cohort fields, persistence,
-and provenance metadata land alongside their first consumers.
+Holds either a 3x3 stain matrix (Macenko/Vahadane) or a pair of Ruderman Lab
+channel statistics (Reinhard), plus optional cohort/provenance metadata and
+on-disk persistence (:meth:`StainReference.save`/:meth:`StainReference.load`).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+
+from squidpy.experimental.im._stain._constants import STAIN_REFERENCE_SCHEMA_VERSION
 
 StainMethod = Literal["macenko", "vahadane", "reinhard"]
 _DECOMPOSITION_METHODS: frozenset[str] = frozenset({"macenko", "vahadane"})
@@ -56,6 +58,16 @@ class StainReference:
         reference. Optional (Reinhard references and externally-built
         decomposition references without it remain valid); forbidden for
         Reinhard.
+    version
+        On-disk schema version, stamped for :meth:`save`/:meth:`load`.
+    cohort_members
+        Image keys that contributed to a cohort fit (``None`` for a
+        single-image reference).
+    per_image_stats
+        Per-slide stats and skip/outlier reasons from a cohort fit
+        (``None`` for a single-image reference).
+    fit_metadata
+        Free-form provenance (method, aggregation, parameters, counts).
     """
 
     method: StainMethod
@@ -64,6 +76,23 @@ class StainReference:
     sigma: np.ndarray | None = None
     background_intensity: np.ndarray | None = None
     max_concentrations: np.ndarray | None = None
+    version: int = STAIN_REFERENCE_SCHEMA_VERSION
+    cohort_members: tuple[str, ...] | None = None
+    per_image_stats: dict[str, Any] | None = None
+    fit_metadata: dict[str, Any] = field(default_factory=dict)
+
+    def save(self, path: str | Path) -> None:
+        """Serialise this reference to JSON at ``path``."""
+        from squidpy.experimental.im._stain._persistence import save_reference
+
+        save_reference(self, path)
+
+    @classmethod
+    def load(cls, path: str | Path) -> StainReference:
+        """Load a reference previously written by :meth:`save`."""
+        from squidpy.experimental.im._stain._persistence import load_reference
+
+        return load_reference(path)
 
     def __eq__(self, other: object) -> bool:
         # The numpy-array fields make the dataclass-generated __eq__ raise

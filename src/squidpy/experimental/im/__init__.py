@@ -17,6 +17,7 @@ from ._stain import (
     apply_stain_normalization,
     decompose_stains,
     estimate_background_intensity,
+    fit_cohort_reference,
     fit_stain_reference,
 )
 
@@ -33,6 +34,7 @@ __all__ = [
     "decompose_stains",
     "detect_tissue",
     "estimate_background_intensity",
+    "fit_cohort_reference",
     "fit_stain_reference",
     "make_tiles",
     "make_tiles_from_spots",

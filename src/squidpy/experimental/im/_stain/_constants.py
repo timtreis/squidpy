@@ -55,3 +55,7 @@ RUDERMAN_LAB_TO_LMS: np.ndarray = np.linalg.inv(RUDERMAN_LMS_TO_LAB)
 # statistics. Semantics follow HistomicsTK's `reinhard` so luminosity
 # thresholds from the H&E literature transfer directly.
 DEFAULT_LUMINOSITY_THRESHOLD: float = 0.8
+
+# On-disk schema version for a persisted StainReference (save/load). Bump when
+# the serialised layout changes; load refuses versions it does not understand.
+STAIN_REFERENCE_SCHEMA_VERSION: int = 1

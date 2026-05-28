@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from squidpy.experimental.im._stain._background import estimate_background_intensity
+from squidpy.experimental.im._stain._cohort import fit_cohort_reference
 from squidpy.experimental.im._stain._constants import (
     DEFAULT_LUMINOSITY_THRESHOLD,
     RUDERMAN_LAB_TO_LMS,
@@ -65,6 +66,7 @@ __all__ = [
     "complement_third_column",
     "decompose_stains",
     "estimate_background_intensity",
+    "fit_cohort_reference",
     "fit_decomposition",
     "fit_reinhard",
     "fit_stain_reference",

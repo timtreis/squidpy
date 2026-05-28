@@ -151,6 +151,7 @@ See the {doc}`extensibility guide </extensibility>` for how to implement a custo
     experimental.tl.TilingQCParams
     experimental.pl.tiling_qc
     experimental.im.fit_stain_reference
+    experimental.im.fit_cohort_reference
     experimental.im.apply_stain_normalization
     experimental.im.decompose_stains
     experimental.im.estimate_background_intensity
