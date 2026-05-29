@@ -28,3 +28,14 @@ class TestStainPlotting(PlotTester, metaclass=PlotTesterMeta):
         _restained_copy(sdata_hne, image_key, "hne_target", [0.7, 1.0, 1.4])
         ref = sq.experimental.im.fit_stain_reference(sdata_hne, "hne_target", method="reinhard")
         sq.experimental.pl.stain_comparison(sdata_hne, image_key, ref)
+
+
+def test_as_rgb_uint8_handles_float_unit_range() -> None:
+    import numpy as np
+
+    from squidpy.experimental.pl._stain import _as_rgb_uint8
+
+    unit = xr.DataArray(np.full((3, 4, 4), 1.0), dims=("c", "y", "x"))
+    out = _as_rgb_uint8(unit)
+    assert out.dtype == np.uint8
+    assert out.max() == 255  # [0,1] float rescaled, not collapsed to ~0

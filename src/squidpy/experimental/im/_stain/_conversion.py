@@ -59,6 +59,9 @@ def _apply_along_channel(
         kwargs=kwargs,
         dask="parallelized",
         output_dtypes=[out_dtype],
+        # the channel axis is the core dim; allow a chunked-`c` input to be
+        # coalesced to a single chunk instead of raising (c is only length 3).
+        dask_gufunc_kwargs={"allow_rechunk": True},
     )
     return out.transpose(*original_dims)
 

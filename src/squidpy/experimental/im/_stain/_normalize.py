@@ -268,6 +268,11 @@ def apply_stain_normalization(
     ``None``, otherwise ``None``.
     """
     da = _resolve_image(sdata, image_key, scale, prefer="finest")
+    # Default to the params the reference was fit with (recorded in
+    # fit_metadata) so the source matrix is re-fit consistently; an explicit
+    # method_params still overrides.
+    if method_params is None:
+        method_params = reference.fit_metadata.get("params")
     params = _resolve_method_params(reference.method, method_params)
     # Source statistics (Reinhard mu/sigma or the decomposition source matrix)
     # are reduced on a coarse level with a tissue mask; the lazy transform is

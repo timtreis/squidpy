@@ -147,3 +147,15 @@ class TestDecompositionOnHnE:
         assert normalized.sizes["c"] == 3
         conc = sq.experimental.im.decompose_stains(sdata_hne, image_key, ref)
         assert set(conc) == {"hematoxylin", "eosin", "residual"}
+
+
+class TestApplyReusesFitParams:
+    def test_apply_without_params_matches_explicit(self) -> None:
+        sdata = _make_sdata(_synthetic_rgb(seed=4))
+        params = {"alpha": 1.0, "beta": 0.05}  # non-default beta
+        ref = fit_stain_reference(sdata, "img", method="macenko", method_params=params, background_intensity=_WHITE)
+        assert ref.fit_metadata["params"]["beta"] == 0.05
+        # apply with no params must reuse the stored fit params -> identical result
+        a = apply_stain_normalization(sdata, "img", ref).values
+        b = apply_stain_normalization(sdata, "img", ref, method_params=params).values
+        np.testing.assert_array_equal(a, b)

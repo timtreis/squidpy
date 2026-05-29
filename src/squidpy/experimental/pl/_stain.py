@@ -32,9 +32,17 @@ def _display_scale(node: object, scale: str) -> str:
 
 
 def _as_rgb_uint8(image: xr.DataArray) -> np.ndarray:
-    """``(c, y, x)`` float DataArray -> ``(y, x, c)`` uint8 for imshow."""
-    arr = np.clip(np.asarray(image.transpose("y", "x", "c").data), 0, 255).astype(np.uint8)
-    return arr
+    """``(c, y, x)`` DataArray -> ``(y, x, c)`` uint8 for imshow.
+
+    Handles both [0, 255] and [0, 1] float conventions: a float image whose
+    values never exceed 1 is rescaled to [0, 255] before the uint8 cast (a
+    plain clip+cast would otherwise collapse it to near-black).
+    """
+    arr = np.asarray(image.transpose("y", "x", "c").data, dtype=np.float64)
+    finite_max = np.nanmax(arr) if arr.size else 0.0
+    if np.issubdtype(image.dtype, np.floating) and 0.0 < finite_max <= 1.0:
+        arr = arr * 255.0
+    return np.clip(arr, 0, 255).astype(np.uint8)
 
 
 def stain_separation(

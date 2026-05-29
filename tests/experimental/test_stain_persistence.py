@@ -92,3 +92,10 @@ def test_missing_keys_raises(tmp_path) -> None:
     path.write_text(json.dumps({"method": "reinhard"}))
     with pytest.raises(ValueError, match="missing 'method'/'version'"):
         StainReference.load(path)
+
+
+def test_string_version_raises(tmp_path) -> None:
+    path = tmp_path / "ref.json"
+    path.write_text(json.dumps({"version": "1", "method": "reinhard"}))
+    with pytest.raises(ValueError, match="unsupported StainReference schema version"):
+        StainReference.load(path)

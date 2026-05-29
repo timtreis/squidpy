@@ -25,6 +25,7 @@ from squidpy.experimental.im._stain._mask import (
     luminosity_foreground_mask,
 )
 from squidpy.experimental.im._stain._reference import StainReference
+from squidpy.experimental.im._stain._validation import angle_between_deg
 
 
 def normalization_consistency(
@@ -61,6 +62,11 @@ def normalization_consistency(
         mean_intensity = image.mean(dim="c")
         mask = luminosity_foreground_mask(image, luminosity_threshold)
         values = np.asarray(mean_intensity.where(mask).values, dtype=np.float64)
+        if not np.any(np.isfinite(values)):
+            raise ValueError(
+                f"image at index {i} has no tissue pixels under luminosity_threshold={luminosity_threshold}; "
+                "raise the threshold or drop the blank image."
+            )
         nmi[i] = float(np.nanmedian(values))
     mean = float(nmi.mean())
     cv = float(nmi.std() / mean) if mean != 0 else float("nan")
@@ -93,11 +99,16 @@ def stain_separation_quality(image: xr.DataArray, reference: StainReference) -> 
     concentrations = decompose_to_concentrations(image, reference.stain_matrix, reference.background_intensity)
     mask = absorbance_foreground_mask(image, reference.background_intensity)
     magnitude = np.abs(concentrations)
-    residual = magnitude.isel(c=2).where(mask)
-    total = magnitude.sum(dim="c").where(mask)
-    residual_fraction = float((residual.sum() / total.sum()).compute())
+    residual_sum, total_sum = (
+        magnitude.isel(c=2).where(mask).sum(),
+        magnitude.sum(dim="c").where(mask).sum(),
+    )
+    residual_value, total_value = (float(residual_sum.compute()), float(total_sum.compute()))
+    if total_value == 0:
+        raise ValueError(
+            "no tissue absorbance under the foreground mask; the image may be blank or the white point wrong."
+        )
+    residual_fraction = residual_value / total_value
 
-    h, e = reference.stain_matrix[:, 0], reference.stain_matrix[:, 1]
-    cos = abs(float(h @ e)) / (np.linalg.norm(h) * np.linalg.norm(e))
-    he_angle_deg = float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
+    he_angle_deg = angle_between_deg(reference.stain_matrix[:, 0], reference.stain_matrix[:, 1])
     return {"residual_fraction": residual_fraction, "he_angle_deg": he_angle_deg}

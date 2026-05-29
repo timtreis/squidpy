@@ -8,7 +8,7 @@ transform is a single per-pixel matmul and stays lazy.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import asdict, dataclass, fields
 from typing import Any
 
 import numpy as np
@@ -214,6 +214,9 @@ def fit_decomposition(
         stain_matrix=matrix,
         background_intensity=np.asarray(background_intensity, dtype=np.float64),
         max_concentrations=_max_concentrations(_concentrations(od, matrix)),
+        # remember the fit params so apply re-fits the source matrix with the
+        # same alpha/beta when the caller does not pass method_params.
+        fit_metadata={"params": asdict(params)},
     )
 
 

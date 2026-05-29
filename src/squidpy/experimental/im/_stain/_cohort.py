@@ -3,12 +3,14 @@
 Fits a per-slide reference for every requested image, drops slides that fail
 to fit (or, optionally, that are outliers), and aggregates the survivors into
 one robust reference. Stain matrices are not linearly averageable (sign/order
-ambiguity, non-Euclidean), so decomposition members are canonical-aligned and
-combined by a per-column angular (component-wise) median, then re-normalised.
+ambiguity), so decomposition members are canonical-aligned, combined by a
+per-column component-wise median of the unit stain vectors (a robust central
+estimate), then re-normalised to unit length.
 """
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import Any, Literal
 
@@ -18,6 +20,7 @@ import spatialdata as sd
 from squidpy.experimental.im._stain._reference import StainMethod, StainReference
 from squidpy.experimental.im._stain._validation import (
     StainFittingError,
+    angle_between_deg,
     complement_third_column,
     reorder_to_canonical,
     validate_stain_matrix,
@@ -27,13 +30,8 @@ _VALID_METHODS = ("reinhard", "macenko", "vahadane")
 _DECOMPOSITION_METHODS = ("macenko", "vahadane")
 
 
-def _unit_angle_deg(u: np.ndarray, v: np.ndarray) -> float:
-    cos = abs(float(u @ v)) / (np.linalg.norm(u) * np.linalg.norm(v))
-    return float(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
-
-
 def _consensus_he(matrices: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
-    """Per-column angular (component-wise median) consensus H and E directions."""
+    """Consensus H and E directions: component-wise median of the columns, renormalised."""
     stack = np.stack(matrices)  # (M, 3, 3)
     h = np.median(stack[:, :, 0], axis=0)
     e = np.median(stack[:, :, 1], axis=0)
@@ -55,7 +53,7 @@ def _reject_outliers(
         h_c, e_c = _consensus_he([fits[k].stain_matrix for k in keys])
         for k in keys:
             w = fits[k].stain_matrix
-            dev = max(_unit_angle_deg(w[:, 0], h_c), _unit_angle_deg(w[:, 1], e_c))
+            dev = max(angle_between_deg(w[:, 0], h_c), angle_between_deg(w[:, 1], e_c))
             if dev > max_angle_deg:
                 dropped[k] = f"stain vectors deviate {dev:.1f} deg from cohort consensus (max {max_angle_deg})."
             else:
@@ -64,9 +62,16 @@ def _reject_outliers(
         mus = np.stack([fits[k].mu for k in keys])
         center = np.median(mus, axis=0)
         dist = np.linalg.norm(mus - center, axis=1)
-        mad = float(np.median(np.abs(dist - np.median(dist)))) or 1.0
-        scores = 0.6745 * (dist - np.median(dist)) / mad  # modified z-score
-        for k, score in zip(keys, scores, strict=True):
+        med = np.median(dist)
+        mad = float(np.median(np.abs(dist - med)))
+        # MAD==0 (>=half the members identical) gives no robust scale; fall
+        # back to std, and if that is 0 too there is no spread, so nothing is
+        # an outlier. Never substitute an unrelated constant scale.
+        scale = 1.4826 * mad if mad > 0 else float(dist.std())
+        if scale == 0:
+            return dict(fits), {}
+        for k, d in zip(keys, dist, strict=True):
+            score = (d - med) / scale
             if abs(score) > z_threshold:
                 dropped[k] = f"mu is a statistical outlier (modified z={score:.1f} > {z_threshold})."
             else:
@@ -81,15 +86,17 @@ def _aggregate(fits: dict[str, StainReference], method: StainMethod) -> tuple[St
         matrix = complement_third_column(reorder_to_canonical(np.stack([h_c, e_c], axis=1)))
         validate_stain_matrix(matrix)
         background = np.median(np.stack([r.background_intensity for r in refs]), axis=0)
+        # median over whatever members carry max_concentrations (members from
+        # fit_decomposition always do); None only if no member has it.
         max_conc_members = [r.max_concentrations for r in refs if r.max_concentrations is not None]
-        max_conc = np.median(np.stack(max_conc_members), axis=0) if len(max_conc_members) == len(refs) else None
+        max_conc = np.median(np.stack(max_conc_members), axis=0) if max_conc_members else None
         reference = StainReference(
             method=method,
             stain_matrix=matrix,
             background_intensity=background,
             max_concentrations=max_conc,
         )
-        return reference, "angular_median"
+        return reference, "componentwise_median"
 
     mu = np.mean(np.stack([r.mu for r in refs]), axis=0)
     sigma = np.sqrt(np.mean(np.stack([r.sigma**2 for r in refs]), axis=0))
@@ -156,14 +163,23 @@ def fit_cohort_reference(
     for key in keys:
         try:
             fits[key] = fit_stain_reference(sdata, key, method=method, scale=scale, method_params=method_params)
-        except StainFittingError as error:
-            skipped[key] = error.reason
+        except (StainFittingError, ValueError) as error:
+            # a degenerate fit (StainFittingError) or a malformed slide
+            # (e.g. non-3-channel -> ValueError) is recorded and skipped,
+            # never aborting the whole cohort.
+            skipped[key] = str(error)
 
     dropped: dict[str, str] = {}
-    if reject_outliers and len(fits) >= 3:
-        fits, dropped = _reject_outliers(
-            fits, method, max_angle_deg=outlier_max_angle_deg, z_threshold=outlier_z_threshold
-        )
+    if reject_outliers:
+        if len(fits) >= 3:
+            fits, dropped = _reject_outliers(
+                fits, method, max_angle_deg=outlier_max_angle_deg, z_threshold=outlier_z_threshold
+            )
+        else:
+            warnings.warn(
+                f"reject_outliers=True but only {len(fits)} member(s) fit; outlier rejection needs >=3 and was skipped.",
+                stacklevel=2,
+            )
 
     if len(fits) < min_members:
         raise StainFittingError(
@@ -172,6 +188,9 @@ def fit_cohort_reference(
         )
 
     reference, aggregation = _aggregate(fits, method)
+    # reuse the params the members were fit with (recorded per-member) so a
+    # later apply re-fits source matrices consistently.
+    member_params = next(iter(fits.values())).fit_metadata.get("params")
     object.__setattr__(reference, "cohort_members", tuple(sorted(fits)))
     object.__setattr__(
         reference,
@@ -185,6 +204,7 @@ def fit_cohort_reference(
             "method": method,
             "aggregation": aggregation,
             "scale": scale,
+            "params": member_params,
             "n_members": len(fits),
             "n_skipped": len(skipped),
             "n_dropped": len(dropped),

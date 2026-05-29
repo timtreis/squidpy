@@ -72,10 +72,10 @@ def from_json(payload: dict[str, Any]) -> StainReference:
     if not isinstance(payload, dict) or "method" not in payload or "version" not in payload:
         raise ValueError("not a valid StainReference document (missing 'method'/'version').")
     version = payload["version"]
-    if version > STAIN_REFERENCE_SCHEMA_VERSION:
+    if not isinstance(version, int) or isinstance(version, bool) or version > STAIN_REFERENCE_SCHEMA_VERSION:
         raise ValueError(
-            f"unsupported StainReference schema version {version}; "
-            f"this squidpy supports up to {STAIN_REFERENCE_SCHEMA_VERSION}."
+            f"unsupported StainReference schema version {version!r}; "
+            f"this squidpy supports integer versions up to {STAIN_REFERENCE_SCHEMA_VERSION}."
         )
 
     kwargs: dict[str, Any] = {"method": payload["method"], "version": version}

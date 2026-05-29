@@ -71,3 +71,19 @@ class TestStainSeparationQuality:
         ref = fit_stain_reference(sdata, "img", method="reinhard")
         with pytest.raises(ValueError, match="decomposition reference"):
             stain_separation_quality(img, ref)
+
+
+class TestEmptyMaskGuards:
+    def test_consistency_raises_on_blank_image(self) -> None:
+        good = _synthetic_rgb(_TRUTH, seed=0)
+        blank = xr.DataArray(np.full((3, 32, 32), 255.0), dims=("c", "y", "x"))
+        with pytest.raises(ValueError, match="no tissue pixels"):
+            normalization_consistency([good, blank])
+
+    def test_separation_quality_raises_on_blank_image(self) -> None:
+        img = _synthetic_rgb(_TRUTH, seed=0)
+        sdata = sd.SpatialData(images={"img": Image2DModel.parse(np.asarray(img.data), dims=("c", "y", "x"))})
+        ref = fit_stain_reference(sdata, "img", method="macenko", background_intensity=_WHITE)
+        blank = xr.DataArray(np.full((3, 32, 32), 255.0), dims=("c", "y", "x"))
+        with pytest.raises(ValueError, match="no tissue absorbance"):
+            stain_separation_quality(blank, ref)

@@ -8,7 +8,7 @@ thin ``sdata`` wrapper lives in :mod:`._normalize`.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, fields
+from dataclasses import asdict, dataclass, fields
 from typing import Any
 
 import numpy as np
@@ -136,7 +136,8 @@ def fit_reinhard(
     _check_channel_dim(image_rgb)
     lab = rgb_to_lab_ruderman(image_rgb)
     mu, sigma = _masked_channel_stats(lab, _reinhard_mask(lab, params, tissue_mask))
-    return StainReference(method="reinhard", mu=mu, sigma=sigma)
+    # record the fit params so apply reuses them when none are passed
+    return StainReference(method="reinhard", mu=mu, sigma=sigma, fit_metadata={"params": asdict(params)})
 
 
 def apply_reinhard(

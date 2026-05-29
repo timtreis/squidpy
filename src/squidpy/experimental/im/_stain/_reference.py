@@ -81,6 +81,25 @@ class StainReference:
     per_image_stats: dict[str, Any] | None = None
     fit_metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __eq__(self, other: object) -> bool:
+        # The numpy-array fields make the dataclass-generated __eq__ raise
+        # ("truth value of an array is ambiguous"), so compare explicitly.
+        # Provenance metadata (per_image_stats/fit_metadata) is excluded:
+        # two references are equal when their fitted content matches.
+        if not isinstance(other, StainReference):
+            return NotImplemented
+        if (self.method, self.version, self.cohort_members) != (other.method, other.version, other.cohort_members):
+            return False
+        return all(
+            np.array_equal(getattr(self, name), getattr(other, name))
+            for name in ("stain_matrix", "mu", "sigma", "background_intensity", "max_concentrations")
+        )
+
+    # eq=False keeps the default identity-based __hash__ (the array fields are
+    # unhashable, so a value-based hash is impossible); references remain usable
+    # as set members / dict keys by identity.
+    __hash__ = object.__hash__
+
     def save(self, path: str | Path) -> None:
         """Serialise this reference to JSON at ``path``."""
         from squidpy.experimental.im._stain._persistence import save_reference
@@ -93,24 +112,6 @@ class StainReference:
         from squidpy.experimental.im._stain._persistence import load_reference
 
         return load_reference(path)
-
-    def __eq__(self, other: object) -> bool:
-        # The numpy-array fields make the dataclass-generated __eq__ raise
-        # ("truth value of an array is ambiguous"), so compare explicitly:
-        # equal method plus element-wise-equal arrays.
-        if not isinstance(other, StainReference):
-            return NotImplemented
-        if self.method != other.method:
-            return False
-        return all(
-            np.array_equal(getattr(self, name), getattr(other, name))
-            for name in ("stain_matrix", "mu", "sigma", "background_intensity", "max_concentrations")
-        )
-
-    # eq=False keeps the default identity-based __hash__ (the array fields are
-    # unhashable, so a value-based hash is impossible); references remain usable
-    # as set members / dict keys by identity.
-    __hash__ = object.__hash__
 
     def __post_init__(self) -> None:
         if self.method not in _VALID_METHODS:
