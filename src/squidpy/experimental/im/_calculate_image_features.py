@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any, Literal, NamedTuple
 
 import anndata as ad
+import cp_measure
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -401,6 +402,8 @@ def _compute_cp_measure_features(
     Columns keep cp_measure's raw CellProfiler names (CamelCase / ``__channel``). With ``channel_ranges``
     (from :func:`_channel_ranges`) the tile is first scaled to 0-1 per channel, as CellProfiler expects.
     """
+    # numba is a dependency of squidpy; set per call, since each worker process has its own cp_measure state
+    cp_measure.set_accelerator("numba")
     if channel_ranges is not None:
         low, high = channel_ranges[:, 0, None, None], channel_ranges[:, 1, None, None]
         tile_image = np.clip((tile_image.astype(np.float32) - low) / (high - low), 0, 1)
@@ -408,7 +411,8 @@ def _compute_cp_measure_features(
     contiguous_labels, _, inverse = relabel_sequential(tile_labels)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        data, columns, rows = featurize(tile_image, contiguous_labels[np.newaxis, :, :], cp_config)
+        # one tile is a batch of one image with one mask type: (B, C, Y, X) and (B, M, Y, X)
+        data, columns, rows = featurize(tile_image[np.newaxis], contiguous_labels[np.newaxis, np.newaxis], cp_config)
     if data.shape[0] == 0:
         return pd.DataFrame()
     row_labels = [int(inverse[r[2]]) for r in rows[: data.shape[0]]]
